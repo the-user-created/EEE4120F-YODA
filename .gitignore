@@ -1,0 +1,20 @@
+# Ignore everything
+/*
+
+# Whitelist specific folders
+!/cpp/
+!/opencl/
+!/verilog/
+
+# Whitelist specific files
+!/*.cpp
+!/*.h
+!/*.hpp
+!/*.c
+!/.gitignore
+!/.pre-commit-config.yaml
+!/Makefile
+!/README.md
+
+# Blacklist specific files
+.idea/

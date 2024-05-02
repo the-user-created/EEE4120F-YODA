@@ -1,0 +1,26 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+# -   repo: local
+#     hooks:
+#     -   id: test
+#         name: test
+#         entry: make
+#         args: ["test"]
+#         language: system
+#         pass_filenames: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-ast
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-toml
+      - id: debug-statements
+      - id: detect-private-key
