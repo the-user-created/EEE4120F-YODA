@@ -17,6 +17,7 @@ all: $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
 	mkdir -p $(BIN_DIR)
+	cp src/Kernel.cl $(BIN_DIR)/Kernel.cl
 	$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
