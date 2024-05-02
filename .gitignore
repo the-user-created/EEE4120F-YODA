@@ -18,3 +18,5 @@
 
 # Blacklist specific files
 .idea/
+bin/
+obj/
