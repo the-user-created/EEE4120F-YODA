@@ -82,13 +82,6 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     size_t global_size = _global_size;
     size_t local_work_size = local_size;
 
-    size_t max_work_group_size;
-    clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(max_work_group_size), &max_work_group_size, nullptr);
-
-    //printf("Max work group size: %zu\n", max_work_group_size);
-    //printf("Local work size: %zu\n", local_work_size);
-    //printf("Global work size: %zu\n", global_size);
-
     // Create input and output buffers
     input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(char) * messageLength, nullptr, &err);
     output_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, 16 * sizeof(char), nullptr, &err);  // MD5 outputs a 128-bit hash
@@ -184,36 +177,12 @@ int main() {
         return 1;  // return with error code 1
     }
 
-    // MD5("The quick brown fox jumps over the lazy dog") =
-    // 9e107d9d372bb6826bd81d3542a419d6  - proper hash
-    // 4a3788eb380784e755bd80983c182580
-
     // Read the file content
     std::string message((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     file.close();
 
-    // print the message hex
-    for (int i = 0; i < message.size(); i++) {
-        printf("%02x", (unsigned char)message[i]);
-    }
-
-    printf("\n");
-
-    // print message size
-    std::cout << "Message size: " << message.size() << "\n";
-
     // Pad the message
     std::vector<char> paddedMessage = padMessage(message);
-
-    // print the padded message
-    for (int i = 0; i < paddedMessage.size(); i++) {
-        printf("%02x", (unsigned char)paddedMessage[i]);
-    }
-
-    printf("\n");
-
-    // print padded message size
-    std::cout << "Padded message size: " << paddedMessage.size() << "\n";
 
     // Compute the number of 512-bit blocks in the message
     int numBlocks = paddedMessage.size() / 64;
@@ -228,15 +197,15 @@ int main() {
             continue;  // Skip if global_size is not a multiple of local_size
         }
         times = runMD5Hashing(paddedMessage, local_size, numBlocks);
-        //std::cout << "Time: " << times[0] << "\n";
+        std::cout << "Time: " << times[0] << "\n";
         double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
         if (avg_time < best_time) {
             best_time = avg_time;
             best_local_size = local_size;
         }
-        //std::cout << "Average time: " << avg_time << "\n";
+        std::cout << "Average time: " << avg_time << "\n";
     }
 
-    //std::cout << "Best local size: " << best_local_size << "\n";
+    std::cout << "Best local size: " << best_local_size << "\n";
     return 0;
 }
