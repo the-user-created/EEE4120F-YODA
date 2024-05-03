@@ -3,9 +3,9 @@
 //
 
 #ifdef __APPLE__
-    #include <OpenCL/cl.h>
+#include <OpenCL/cl.h>
 #else
-    #include<CL/cl.h>
+#include<CL/cl.h>
 #endif
 
 #include <iostream>
@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 #include <numeric>
+
+#include "OpenCLError.h"
 
 // Function to run MD5 hashing and return execution times
 std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local_size, size_t _global_size, bool printOutput = false) {
@@ -37,6 +39,9 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     if (err == CL_DEVICE_NOT_FOUND) {
         err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, nullptr);
     }
+    if (err != CL_SUCCESS) {
+        throw OpenCLError("Failed to initialize OpenCL device");
+    }
 
     // Create Context
     cl_context context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
@@ -59,20 +64,19 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
         clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_size);
         std::unique_ptr<char[]> log(new char[log_size]);
         clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log.get(), nullptr);
-        std::cerr << "Build failed; error=" << err << ", log:\n" << log.get() << std::endl;
-        exit(1);
+        throw OpenCLError(std::string("Build failed; error=") + std::to_string(err) + ", log:\n" + log.get());
     }
 
     // Create the MD5 kernel
     cl_kernel kernel = clCreateKernel(program, "md5_hash", &err);
 
     // Get the OpenCL version
-    #if defined(CL_VERSION_2_0)
-        const cl_queue_properties props[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
+#if defined(CL_VERSION_2_0)
+    const cl_queue_properties props[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
             cl_command_queue queue = clCreateCommandQueueWithProperties(context, device, props, &err);
-    #else
-        cl_command_queue queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
-    #endif
+#else
+    cl_command_queue queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
+#endif
 
     // Set up data buffers
     size_t global_size = _global_size;
@@ -90,16 +94,14 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     // Write the input data to the input buffer
     err = clEnqueueWriteBuffer(queue, input_buffer, CL_TRUE, 0, sizeof(char) * messageLength, message.data(), 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
-        std::cerr << "Failed to write to source array!\n";
-        exit(1);
+        throw OpenCLError("Failed to write to source array");
     }
 
     // Execute the kernel
     cl_event event;
     err = clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_work_size, 0, nullptr, &event);
     if (err) {
-        std::cerr << "Failed to execute kernel!\n";
-        exit(1);
+        throw OpenCLError("Failed to execute kernel");
     }
 
     // Wait for the kernel to finish executing
@@ -118,8 +120,7 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     std::unique_ptr<char[]> output(new char[16]);
     err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, 16 * sizeof(char), output.get(), 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
-        std::cerr << "Failed to read output array!\n";
-        exit(1);
+        throw OpenCLError("Failed to read output array");
     }
 
     // Print the output
@@ -197,21 +198,26 @@ int main() {
 
     std::vector<double> exec_times;
 
-    // Run MD5 hashing 100 times
-    for (int i = 0; i < 100; ++i) {
-        if (i == 99) {
-            // Print the output for the last iteration
-            exec_times = runMD5Hashing(paddedMessage, local_size, numBlocks, true);
-        } else {
-            exec_times = runMD5Hashing(paddedMessage, local_size, numBlocks);
-        }
+    try {
+        // Run MD5 hashing 100 times
+        for (int i = 0; i < 100; ++i) {
+            if (i == 99) {
+                // Print the output for the last iteration
+                exec_times = runMD5Hashing(paddedMessage, local_size, numBlocks, true);
+            } else {
+                exec_times = runMD5Hashing(paddedMessage, local_size, numBlocks);
+            }
 
-        // Add the padding time to each execution time
-        for (auto& time : exec_times) {
-            time += paddingTime;
-        }
+            // Add the padding time to each execution time
+            for (auto &time: exec_times) {
+                time += paddingTime;
+            }
 
-        times.insert(times.end(), exec_times.begin(), exec_times.end());
+            times.insert(times.end(), exec_times.begin(), exec_times.end());
+        }
+    } catch (const OpenCLError& e) {
+        std::cerr << e.what() << std::endl;
+        return 1;
     }
 
     // Calculate the average time
