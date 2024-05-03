@@ -53,6 +53,11 @@ make
 make run
 ```
 
+## TODOs
+- [ ] Optimize the OpenCL implementation
+- [ ] Implement the FPGA version of the MD5 algorithm
+- [ ] Test various C compiler flags (can comment on this in the report)
+
 ## Authors
 - David Young - [YNGDAV005@myuct.ac.za](mailto:YNGDAV005@myuct.ac.za)
 - Caide Spriestersbach - [SPRCAI002@myuct.ac.za](mailto:SPRCAI002@myuct.ac.za)
