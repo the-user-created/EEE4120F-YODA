@@ -15,7 +15,7 @@
 #include <numeric>
 
 // Function to run MD5 hashing and return execution times
-std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local_size, size_t _global_size) {
+std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local_size, size_t _global_size, bool printOutput = false) {
     // Get the length of the message
     int messageLength = message.size();
 
@@ -25,11 +25,9 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     cl_mem input_buffer, output_buffer;
 
     // Initialize OpenCL Platform
-    cl_uint platformCount;
-    cl_platform_id* platforms;
-    clGetPlatformIDs(5, nullptr, &platformCount);
-    platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
-    clGetPlatformIDs(platformCount, platforms, nullptr);
+    cl_uint platformCount = 0;
+    std::unique_ptr<cl_platform_id[]> platforms(new cl_platform_id[platformCount]);
+    clGetPlatformIDs(platformCount, platforms.get(), nullptr);
     cl_platform_id platform = platforms[0];
 
     // Initialize OpenCL Device
@@ -48,22 +46,20 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     fseek(program_handle, 0, SEEK_END);
     size_t program_size = ftell(program_handle);
     rewind(program_handle);
-    char* program_buffer = (char*)malloc(program_size + 1);
+    std::unique_ptr<char[]> program_buffer(new char[program_size + 1]);
     program_buffer[program_size] = '\0';
-    fread(program_buffer, sizeof(char), program_size, program_handle);
+    fread(program_buffer.get(), sizeof(char), program_size, program_handle);
     fclose(program_handle);
 
     cl_program program = clCreateProgramWithSource(context, 1, (const char**)&program_buffer, &program_size, &err);
-    //clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
     err = clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
     if (err != CL_SUCCESS) {
         // The program failed to build, print the build log for debugging
         size_t log_size;
         clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_size);
-        char *log = new char[log_size];
-        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log, nullptr);
-        std::cerr << "Build failed; error=" << err << ", log:\n" << log << std::endl;
-        delete[] log;
+        std::unique_ptr<char[]> log(new char[log_size]);
+        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log.get(), nullptr);
+        std::cerr << "Build failed; error=" << err << ", log:\n" << log.get() << std::endl;
         exit(1);
     }
 
@@ -119,30 +115,29 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     executionTimes.push_back(executionTime);
 
     // Read the output buffer back to the host
-    char* output = new char[16];
-    err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, 16 * sizeof(char), output, 0, nullptr, nullptr);
+    std::unique_ptr<char[]> output(new char[16]);
+    err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, 16 * sizeof(char), output.get(), 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
         std::cerr << "Failed to read output array!\n";
         exit(1);
     }
 
     // Print the output
-    for (int i = 0; i < 16; i++) {
-        printf("%02x", (unsigned char)output[i]);
+    if (printOutput) {
+        std::cout << "MD5 Hash: ";
+        for (int i = 0; i < 16; i++) {
+            printf("%02x", output[i] & 0xFF);
+        }
+        std::cout << "\n";
     }
-    printf("\n");
-
-    // Clean up
-    delete[] output;
 
     // Deallocate resources
-    clReleaseKernel(kernel);
     clReleaseMemObject(input_buffer);
     clReleaseMemObject(output_buffer);
-    clReleaseCommandQueue(queue);
+    clReleaseKernel(kernel);
     clReleaseProgram(program);
+    clReleaseCommandQueue(queue);
     clReleaseContext(context);
-    free(platforms);
 
     return executionTimes;
 }
@@ -181,31 +176,48 @@ int main() {
     std::string message((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     file.close();
 
+    // Start the timer
+    auto start = std::chrono::high_resolution_clock::now();
+
     // Pad the message
     std::vector<char> paddedMessage = padMessage(message);
 
     // Compute the number of 512-bit blocks in the message
     int numBlocks = paddedMessage.size() / 64;
 
-    std::vector<double> times;
-    size_t best_local_size = 0;
-    double best_time = std::numeric_limits<double>::max();
+    // Stop the timer
+    auto stop = std::chrono::high_resolution_clock::now();
 
-    // Test local sizes from 1 to 256
-    for (size_t local_size = 1; local_size <= 256; ++local_size) {
-        if (numBlocks % local_size != 0) {
-            continue;  // Skip if global_size is not a multiple of local_size
+    // Compute the time it took to pad the message
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    double paddingTime = duration.count() * 1e-6;  // Convert from microseconds to seconds
+
+    std::vector<double> times;
+    size_t local_size = 1;  // Set local size to 1
+
+    std::vector<double> exec_times;
+
+    // Run MD5 hashing 100 times
+    for (int i = 0; i < 100; ++i) {
+        if (i == 99) {
+            // Print the output for the last iteration
+            exec_times = runMD5Hashing(paddedMessage, local_size, numBlocks, true);
+        } else {
+            exec_times = runMD5Hashing(paddedMessage, local_size, numBlocks);
         }
-        times = runMD5Hashing(paddedMessage, local_size, numBlocks);
-        std::cout << "Time: " << times[0] << "\n";
-        double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-        if (avg_time < best_time) {
-            best_time = avg_time;
-            best_local_size = local_size;
+
+        // Add the padding time to each execution time
+        for (auto& time : exec_times) {
+            time += paddingTime;
         }
-        std::cout << "Average time: " << avg_time << "\n";
+
+        times.insert(times.end(), exec_times.begin(), exec_times.end());
     }
 
-    std::cout << "Best local size: " << best_local_size << "\n";
+    // Calculate the average time
+    double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+
+    std::cout << "Average time: " << avg_time << "\n";
+
     return 0;
 }
