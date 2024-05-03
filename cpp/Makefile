@@ -22,6 +22,9 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Clean, build, and run
+re: clean all run
+
 # Run target
 run: $(EXECUTABLE)
 	$(EXECUTABLE)
