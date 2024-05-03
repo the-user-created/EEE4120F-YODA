@@ -44,6 +44,14 @@ static const constexpr uint32_t K[64] = {
         0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
 };
 
+// The g values for each round
+static const constexpr uint32_t g_values[64] = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, // for j <= 15
+        1, 6, 11, 0, 5, 10, 15, 4, 9, 14, 3, 8, 13, 2, 7, 12, // for j <= 31
+        5, 8, 11, 14, 1, 4, 7, 10, 13, 0, 3, 6, 9, 12, 15, 2, // for j <= 47
+        0, 7, 14, 5, 12, 3, 10, 1, 8, 15, 6, 13, 4, 11, 2, 9  // for j <= 63
+};
+
 uint32_t a0 = 0x67452301; // Initial value of 'a' where 'a' is a 32-bit word.
 uint32_t b0 = 0xefcdab89; // Initial value of 'b' where 'b' is a 32-bit word.
 uint32_t c0 = 0x98badcfe; // Initial value of 'c' where 'c' is a 32-bit word.
@@ -113,29 +121,25 @@ std::array<uint8_t, 16> calculate(const std::string& inputStr) {
         uint32_t DD = D;
 
         // Main loop
-        for (int j = 0; j < 64; ++j) {
-            uint32_t tempF, g;
+        for (int j = 0; j < 64; j += 4) {
+            uint32_t tempF[4], g[4], tempShift[4];
 
-            int index = j >> 4; // This will give us values 0, 1, 2, 3 for j in the ranges 0-15, 16-31, 32-47, 48-63 respectively
+            // Loop unrolling to reduce overhead of loop control and increase instruction-level parallelism
+            for (int k = 0; k < 4; ++k) {
+                int index = (j + k) >> 4;
 
-            // Call the appropriate function using the lookup table
-            tempF = funcTable[index](BB, CC, DD);
+                // Call the appropriate function using the lookup table
+                tempF[k] = funcTable[index](BB, CC, DD);
 
-            if (index == 0) {
-                g = j;
-            } else if (index == 1) {
-                g = (5*j + 1) & 0x0F;
-            } else if (index == 2) {
-                g = (3*j + 5) & 0x0F;
-            } else {
-                g = (7*j) & 0x0F;
+                g[k] = g_values[j + k];
+
+                tempF[k] = tempF[k] + AA + K[j + k] + M[g[k]]; // Note: Addition may overflow, which is fine
+                tempShift[k] = (tempF[k] << S[j + k]) | (tempF[k] >> (32 - S[j + k])); // Store the result of the bitwise operation in a temporary variable
+                AA = DD;
+                DD = CC;
+                CC = BB;
+                BB += tempShift[k]; // Use the stored result
             }
-
-            tempF = tempF + AA + K[j] + M[g]; // Note: Addition may overflow, which is fine
-            AA = DD;
-            DD = CC;
-            CC = BB;
-            BB += (tempF << S[j]) | (tempF >> (32 - S[j])); // Note: The rotation is separate from the addition to prevent recomputation
         }
 
         // Add this chunk's hash to result so far
