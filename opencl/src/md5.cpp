@@ -16,6 +16,52 @@
 
 #include "OpenCLError.h"
 
+// Class to manage OpenCL resources
+class OpenCLResources {
+private:
+    cl_platform_id platform;
+    cl_device_id device;
+    cl_context context;
+    cl_command_queue queue;
+
+public:
+    OpenCLResources() {
+        cl_int err;
+
+        // Initialize OpenCL Platform
+        cl_uint platformCount = 0;
+        clGetPlatformIDs(0, nullptr, &platformCount);
+        std::unique_ptr<cl_platform_id[]> platforms(new cl_platform_id[platformCount]);
+        clGetPlatformIDs(platformCount, platforms.get(), nullptr);
+        platform = platforms[0];
+
+        // Initialize OpenCL Device
+        err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, nullptr);
+        if (err == CL_DEVICE_NOT_FOUND) {
+            err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, nullptr);
+        }
+        if (err != CL_SUCCESS) {
+            throw OpenCLError("Failed to initialize OpenCL device");
+        }
+
+        // Create Context
+        context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
+
+        // Create Command Queue
+#if defined(CL_VERSION_2_0)
+        const cl_queue_properties props[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
+        queue = clCreateCommandQueueWithProperties(context, device, props, &err);
+#else
+        queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
+#endif
+    }
+
+    cl_platform_id getPlatform() const { return platform; }
+    cl_device_id getDevice() const { return device; }
+    cl_context getContext() const { return context; }
+    cl_command_queue getQueue() const { return queue; }
+};
+
 // Function to run MD5 hashing and return execution times
 std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local_size, size_t _global_size, bool printOutput = false) {
     // Get the length of the message
@@ -26,25 +72,8 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
 
     cl_mem input_buffer, output_buffer;
 
-    // Initialize OpenCL Platform
-    cl_uint platformCount = 0;
-    std::unique_ptr<cl_platform_id[]> platforms(new cl_platform_id[platformCount]);
-    clGetPlatformIDs(platformCount, platforms.get(), nullptr);
-    cl_platform_id platform = platforms[0];
-
-    // Initialize OpenCL Device
-    cl_device_id device;
-    cl_int err;
-    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, nullptr);
-    if (err == CL_DEVICE_NOT_FOUND) {
-        err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, nullptr);
-    }
-    if (err != CL_SUCCESS) {
-        throw OpenCLError("Failed to initialize OpenCL device");
-    }
-
-    // Create Context
-    cl_context context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
+    // Create an instance of OpenCLResources
+    OpenCLResources resources;
 
     // Read and compile the kernel
     FILE* program_handle = fopen("bin/Kernel.cl", "r");
@@ -56,35 +85,27 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     fread(program_buffer.get(), sizeof(char), program_size, program_handle);
     fclose(program_handle);
 
-    cl_program program = clCreateProgramWithSource(context, 1, (const char**)&program_buffer, &program_size, &err);
-    err = clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
+    cl_program program = clCreateProgramWithSource(resources.getContext(), 1, (const char**)&program_buffer, &program_size, nullptr);
+    cl_int err = clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
     if (err != CL_SUCCESS) {
         // The program failed to build, print the build log for debugging
         size_t log_size;
-        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_size);
+        clGetProgramBuildInfo(program, resources.getDevice(), CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_size);
         std::unique_ptr<char[]> log(new char[log_size]);
-        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log.get(), nullptr);
+        clGetProgramBuildInfo(program, resources.getDevice(), CL_PROGRAM_BUILD_LOG, log_size, log.get(), nullptr);
         throw OpenCLError(std::string("Build failed; error=") + std::to_string(err) + ", log:\n" + log.get());
     }
 
     // Create the MD5 kernel
     cl_kernel kernel = clCreateKernel(program, "md5_hash", &err);
 
-    // Get the OpenCL version
-#if defined(CL_VERSION_2_0)
-    const cl_queue_properties props[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
-            cl_command_queue queue = clCreateCommandQueueWithProperties(context, device, props, &err);
-#else
-    cl_command_queue queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
-#endif
-
     // Set up data buffers
     size_t global_size = _global_size;
     size_t local_work_size = local_size;
 
     // Create input and output buffers
-    input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(char) * messageLength, nullptr, &err);
-    output_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, 16 * sizeof(char), nullptr, &err);  // MD5 outputs a 128-bit hash
+    input_buffer = clCreateBuffer(resources.getContext(), CL_MEM_READ_ONLY, sizeof(char) * messageLength, nullptr, &err);
+    output_buffer = clCreateBuffer(resources.getContext(), CL_MEM_WRITE_ONLY, 16 * sizeof(char), nullptr, &err);  // MD5 outputs a 128-bit hash
 
     // Set kernel arguments
     clSetKernelArg(kernel, 0, sizeof(cl_mem), &input_buffer);
@@ -92,14 +113,14 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     clSetKernelArg(kernel, 2, sizeof(int), &messageLength);
 
     // Write the input data to the input buffer
-    err = clEnqueueWriteBuffer(queue, input_buffer, CL_TRUE, 0, sizeof(char) * messageLength, message.data(), 0, nullptr, nullptr);
+    err = clEnqueueWriteBuffer(resources.getQueue(), input_buffer, CL_TRUE, 0, sizeof(char) * messageLength, message.data(), 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
         throw OpenCLError("Failed to write to source array");
     }
 
     // Execute the kernel
     cl_event event;
-    err = clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_work_size, 0, nullptr, &event);
+    err = clEnqueueNDRangeKernel(resources.getQueue(), kernel, 1, nullptr, &global_size, &local_work_size, 0, nullptr, &event);
     if (err) {
         throw OpenCLError("Failed to execute kernel");
     }
@@ -118,7 +139,7 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
 
     // Read the output buffer back to the host
     std::unique_ptr<char[]> output(new char[16]);
-    err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, 16 * sizeof(char), output.get(), 0, nullptr, nullptr);
+    err = clEnqueueReadBuffer(resources.getQueue(), output_buffer, CL_TRUE, 0, 16 * sizeof(char), output.get(), 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
         throw OpenCLError("Failed to read output array");
     }
@@ -137,8 +158,6 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     clReleaseMemObject(output_buffer);
     clReleaseKernel(kernel);
     clReleaseProgram(program);
-    clReleaseCommandQueue(queue);
-    clReleaseContext(context);
 
     return executionTimes;
 }
