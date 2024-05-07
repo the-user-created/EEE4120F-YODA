@@ -3,9 +3,9 @@
 //
 
 #ifdef __APPLE__
-    #include <OpenCL/cl.h>
+#include <OpenCL/cl.h>
 #else
-    #include<CL/cl.h>
+#include<CL/cl.h>
 #endif
 
 #include <iostream>
@@ -14,8 +14,85 @@
 #include <vector>
 #include <numeric>
 
+#include "OpenCLError.h"
+
+// Class to manage OpenCL resources
+class OpenCLResources {
+private:
+    cl_platform_id platform;
+    cl_device_id device;
+    cl_context context;
+    cl_command_queue queue;
+    cl_program program;
+
+public:
+    OpenCLResources() {
+        cl_int err;
+
+        // Initialize OpenCL Platform
+        cl_uint platformCount = 0;
+        clGetPlatformIDs(0, nullptr, &platformCount);
+        std::unique_ptr<cl_platform_id[]> platforms(new cl_platform_id[platformCount]);
+        clGetPlatformIDs(platformCount, platforms.get(), nullptr);
+        platform = platforms[0];
+
+        // Initialize OpenCL Device
+        err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, nullptr);
+        if (err == CL_DEVICE_NOT_FOUND) {
+            err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, nullptr);
+        }
+        if (err != CL_SUCCESS) {
+            throw OpenCLError("Failed to initialize OpenCL device");
+        }
+
+        // Create Context
+        context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
+
+        // Create Command Queue
+#if defined(CL_VERSION_2_0)
+        const cl_queue_properties props[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
+        queue = clCreateCommandQueueWithProperties(context, device, props, &err);
+#else
+        queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
+#endif
+
+        // Read and compile the kernel
+        FILE* program_handle = fopen("bin/Kernel.cl", "r");
+        fseek(program_handle, 0, SEEK_END);
+        size_t program_size = ftell(program_handle);
+        rewind(program_handle);
+        std::unique_ptr<char[]> program_buffer(new char[program_size + 1]);
+        program_buffer[program_size] = '\0';
+        fread(program_buffer.get(), sizeof(char), program_size, program_handle);
+        fclose(program_handle);
+
+        program = clCreateProgramWithSource(context, 1, (const char**)&program_buffer, &program_size, nullptr);
+        err = clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
+        if (err != CL_SUCCESS) {
+            // The program failed to build, print the build log for debugging
+            size_t log_size;
+            clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_size);
+            std::unique_ptr<char[]> log(new char[log_size]);
+            clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log.get(), nullptr);
+            throw OpenCLError(std::string("Build failed; error=") + std::to_string(err) + ", log:\n" + log.get());
+        }
+    }
+
+    ~OpenCLResources() {
+        clReleaseProgram(program);
+        clReleaseCommandQueue(queue);
+        clReleaseContext(context);
+    }
+
+    cl_platform_id getPlatform() const { return platform; }
+    cl_device_id getDevice() const { return device; }
+    cl_context getContext() const { return context; }
+    cl_command_queue getQueue() const { return queue; }
+    cl_program getProgram() const { return program; }
+};
+
 // Function to run MD5 hashing and return execution times
-std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local_size, size_t _global_size) {
+std::vector<double> runMD5Hashing(OpenCLResources& resources, const std::vector<char>& message, size_t local_size, size_t numBlocks, bool printOutput = false) {
     // Get the length of the message
     int messageLength = message.size();
 
@@ -24,67 +101,21 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
 
     cl_mem input_buffer, output_buffer;
 
-    // Initialize OpenCL Platform
-    cl_uint platformCount;
-    cl_platform_id* platforms;
-    clGetPlatformIDs(5, nullptr, &platformCount);
-    platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
-    clGetPlatformIDs(platformCount, platforms, nullptr);
-    cl_platform_id platform = platforms[0];
+    // Use the compiled program
+    cl_program program = resources.getProgram();
 
-    // Initialize OpenCL Device
-    cl_device_id device;
     cl_int err;
-    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, nullptr);
-    if (err == CL_DEVICE_NOT_FOUND) {
-        err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, nullptr);
-    }
-
-    // Create Context
-    cl_context context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
-
-    // Read and compile the kernel
-    FILE* program_handle = fopen("bin/Kernel.cl", "r");
-    fseek(program_handle, 0, SEEK_END);
-    size_t program_size = ftell(program_handle);
-    rewind(program_handle);
-    char* program_buffer = (char*)malloc(program_size + 1);
-    program_buffer[program_size] = '\0';
-    fread(program_buffer, sizeof(char), program_size, program_handle);
-    fclose(program_handle);
-
-    cl_program program = clCreateProgramWithSource(context, 1, (const char**)&program_buffer, &program_size, &err);
-    //clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
-    err = clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
-    if (err != CL_SUCCESS) {
-        // The program failed to build, print the build log for debugging
-        size_t log_size;
-        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_size);
-        char *log = new char[log_size];
-        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log, nullptr);
-        std::cerr << "Build failed; error=" << err << ", log:\n" << log << std::endl;
-        delete[] log;
-        exit(1);
-    }
 
     // Create the MD5 kernel
     cl_kernel kernel = clCreateKernel(program, "md5_hash", &err);
 
-    // Get the OpenCL version
-    #if defined(CL_VERSION_2_0)
-        const cl_queue_properties props[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
-            cl_command_queue queue = clCreateCommandQueueWithProperties(context, device, props, &err);
-    #else
-        cl_command_queue queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
-    #endif
-
     // Set up data buffers
-    size_t global_size = _global_size;
+    size_t global_size = numBlocks;
     size_t local_work_size = local_size;
 
     // Create input and output buffers
-    input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(char) * messageLength, nullptr, &err);
-    output_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, 16 * sizeof(char), nullptr, &err);  // MD5 outputs a 128-bit hash
+    input_buffer = clCreateBuffer(resources.getContext(), CL_MEM_READ_ONLY, sizeof(char) * messageLength, nullptr, &err);
+    output_buffer = clCreateBuffer(resources.getContext(), CL_MEM_WRITE_ONLY, 16 * sizeof(char), nullptr, &err);  // MD5 outputs a 128-bit hash
 
     // Set kernel arguments
     clSetKernelArg(kernel, 0, sizeof(cl_mem), &input_buffer);
@@ -92,18 +123,16 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     clSetKernelArg(kernel, 2, sizeof(int), &messageLength);
 
     // Write the input data to the input buffer
-    err = clEnqueueWriteBuffer(queue, input_buffer, CL_TRUE, 0, sizeof(char) * messageLength, message.data(), 0, nullptr, nullptr);
+    err = clEnqueueWriteBuffer(resources.getQueue(), input_buffer, CL_TRUE, 0, sizeof(char) * messageLength, message.data(), 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
-        std::cerr << "Failed to write to source array!\n";
-        exit(1);
+        throw OpenCLError("Failed to write to source array");
     }
 
     // Execute the kernel
     cl_event event;
-    err = clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_work_size, 0, nullptr, &event);
+    err = clEnqueueNDRangeKernel(resources.getQueue(), kernel, 1, nullptr, &global_size, &local_work_size, 0, nullptr, &event);
     if (err) {
-        std::cerr << "Failed to execute kernel!\n";
-        exit(1);
+        throw OpenCLError("Failed to execute kernel");
     }
 
     // Wait for the kernel to finish executing
@@ -119,30 +148,25 @@ std::vector<double> runMD5Hashing(const std::vector<char>& message, size_t local
     executionTimes.push_back(executionTime);
 
     // Read the output buffer back to the host
-    char* output = new char[16];
-    err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, 16 * sizeof(char), output, 0, nullptr, nullptr);
+    std::unique_ptr<char[]> output(new char[16]);
+    err = clEnqueueReadBuffer(resources.getQueue(), output_buffer, CL_TRUE, 0, 16 * sizeof(char), output.get(), 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
-        std::cerr << "Failed to read output array!\n";
-        exit(1);
+        throw OpenCLError("Failed to read output array");
     }
 
     // Print the output
-    for (int i = 0; i < 16; i++) {
-        printf("%02x", (unsigned char)output[i]);
+    if (printOutput) {
+        std::cout << "MD5 Hash: ";
+        for (int i = 0; i < 16; i++) {
+            printf("%02x", output[i] & 0xFF);
+        }
+        std::cout << "\n";
     }
-    printf("\n");
-
-    // Clean up
-    delete[] output;
 
     // Deallocate resources
-    clReleaseKernel(kernel);
     clReleaseMemObject(input_buffer);
     clReleaseMemObject(output_buffer);
-    clReleaseCommandQueue(queue);
-    clReleaseProgram(program);
-    clReleaseContext(context);
-    free(platforms);
+    clReleaseKernel(kernel);
 
     return executionTimes;
 }
@@ -181,31 +205,83 @@ int main() {
     std::string message((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     file.close();
 
+    // Start the timer
+    auto start = std::chrono::high_resolution_clock::now();
+
     // Pad the message
     std::vector<char> paddedMessage = padMessage(message);
 
     // Compute the number of 512-bit blocks in the message
     int numBlocks = paddedMessage.size() / 64;
 
-    std::vector<double> times;
-    size_t best_local_size = 0;
-    double best_time = std::numeric_limits<double>::max();
+    // print numblocks and padded message size
+    std::cout << "Number of blocks: " << numBlocks << "\n";
+    std::cout << "Padded message size: " << paddedMessage.size() << "\n";
 
-    // Test local sizes from 1 to 256
-    for (size_t local_size = 1; local_size <= 256; ++local_size) {
-        if (numBlocks % local_size != 0) {
-            continue;  // Skip if global_size is not a multiple of local_size
+    // Stop the timer
+    auto stop = std::chrono::high_resolution_clock::now();
+
+    // Compute the time it took to pad the message
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    double paddingTime = duration.count() * 1e-6;  // Convert from microseconds to seconds
+
+    std::vector<double> times;
+    size_t local_size = 1;
+
+    // Local work size determines how many work items (threads) are in a work group
+    // A work group executes on a single compute unit.
+    // The work items in a work group can communicate with each other using local memory.
+    // The local work size has these constraints:
+    // - The total number of work items in a work group must be less than or equal to the maximum work group size. (CL_DEVICE_MAX_WORK_GROUP_SIZE)
+    // - The local size must be evenly divisible by the global size.
+    // - The local size in each dimension must be less than or equal to the maximum work-item sizes (CL_DEVICE_MAX_WORK_ITEM_SIZES)
+    // - The amount of local memory used by the kernel must be less than or equal to the local memory size. (CL_DEVICE_LOCAL_MEM_SIZE)
+    //
+    // Optimal local size is often a multiple of the warp size (or wavefront size) of the GPU.
+
+    // TODO: local/global size determination
+
+    // Create an instance of OpenCLResources
+    OpenCLResources resources;
+
+    std::vector<double> exec_times;
+
+    // Open a file in write mode.
+    std::ofstream outfile;
+    outfile.open("execution_times.csv");
+    outfile << "Num,Time\n"; // Write the headers
+
+    try {
+        // Run MD5 hashing 100 times
+        for (int i = 0; i < 1000; ++i) {
+            if (i == 999) {
+                // Print the output for the last iteration
+                exec_times = runMD5Hashing(resources, paddedMessage, local_size, numBlocks, true);
+            } else {
+                exec_times = runMD5Hashing(resources, paddedMessage, local_size, numBlocks);
+            }
+
+            // Add the padding time to each execution time
+            for (auto &time: exec_times) {
+                time += paddingTime;
+            }
+
+            times.insert(times.end(), exec_times.begin(), exec_times.end());
+
+            // Write the execution time to the CSV file
+            outfile << i+1 << "," << exec_times[0] << "\n";
         }
-        times = runMD5Hashing(paddedMessage, local_size, numBlocks);
-        std::cout << "Time: " << times[0] << "\n";
-        double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-        if (avg_time < best_time) {
-            best_time = avg_time;
-            best_local_size = local_size;
-        }
-        std::cout << "Average time: " << avg_time << "\n";
+    } catch (const OpenCLError& e) {
+        std::cerr << e.what() << std::endl;
+        return 1;
     }
 
-    std::cout << "Best local size: " << best_local_size << "\n";
+    outfile.close(); // Close the file
+
+    // Calculate the average time
+    double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+
+    std::cout << "Average time: " << avg_time << " s\n";
+
     return 0;
 }

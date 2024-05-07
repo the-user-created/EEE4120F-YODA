@@ -1,6 +1,6 @@
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Iinclude
+CXXFLAGS = -std=c++17 -Wall -Iinclude -O3
 
 # Build settings
 SRC_DIR = src
@@ -22,6 +22,9 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Clean, build, and run
+re: clean all run
+
 # Run target
 run: $(EXECUTABLE)
 	$(EXECUTABLE)
@@ -30,4 +33,4 @@ run: $(EXECUTABLE)
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
-.PHONY: all clean
+.PHONY: all clean run re
