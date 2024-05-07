@@ -6,6 +6,7 @@
  * Description: Various implementations of the MD5 hashing algorithm. This implementation is based on the MD5 algorithm described in RFC 1321. This also solely focuses on the C++ implementation of the MD5 algorithm.
  */
 
+#include <fstream>
 #include <iostream>
 #include <array>
 #include <cstdint>
@@ -166,7 +167,12 @@ int main() {
     std::string input = "The quick brown fox jumps over the lazy dog";
 
     double total_time = 0;
-    int executions = 100;
+    int executions = 1000;
+
+    // Open a file in write mode.
+    std::ofstream outfile;
+    outfile.open("execution_times.csv");
+    outfile << "Num,Time\n"; // Write the headers
 
     for (int i = 0; i < executions; ++i) {
         auto start = std::chrono::high_resolution_clock::now();
@@ -177,7 +183,12 @@ int main() {
         std::chrono::duration<double> diff = end-start;
 
         total_time += diff.count();
+
+        // Write the execution time to the CSV file
+        outfile << i+1 << "," << diff.count() << "\n";
     }
+
+    outfile.close(); // Close the file
 
     // Print the hash
     std::cout << "MD5 Hash: ";
@@ -188,7 +199,7 @@ int main() {
 
     double average_time = total_time / executions;
 
-    std::cout << "Average execution time: " << average_time * 1000 << " ms\n";
+    std::cout << "Average time: " << average_time * 1000 << " ms\n";
 
     return 0;
 }

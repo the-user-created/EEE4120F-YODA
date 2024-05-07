@@ -246,10 +246,15 @@ int main() {
 
     std::vector<double> exec_times;
 
+    // Open a file in write mode.
+    std::ofstream outfile;
+    outfile.open("execution_times.csv");
+    outfile << "Num,Time\n"; // Write the headers
+
     try {
         // Run MD5 hashing 100 times
-        for (int i = 0; i < 100; ++i) {
-            if (i == 99) {
+        for (int i = 0; i < 1000; ++i) {
+            if (i == 999) {
                 // Print the output for the last iteration
                 exec_times = runMD5Hashing(resources, paddedMessage, local_size, numBlocks, true);
             } else {
@@ -262,16 +267,21 @@ int main() {
             }
 
             times.insert(times.end(), exec_times.begin(), exec_times.end());
+
+            // Write the execution time to the CSV file
+            outfile << i+1 << "," << exec_times[0] << "\n";
         }
     } catch (const OpenCLError& e) {
         std::cerr << e.what() << std::endl;
         return 1;
     }
 
+    outfile.close(); // Close the file
+
     // Calculate the average time
     double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
 
-    std::cout << "Average time: " << avg_time << "\n";
+    std::cout << "Average time: " << avg_time << " s\n";
 
     return 0;
 }
