@@ -1,5 +1,6 @@
 # Variables
 IVERILOG = iverilog
+IVERILOG_FLAGS=-Wall -g2012
 VVP = vvp
 SOURCE = src/md5.v
 TESTBENCH = src/md5_tb.v
@@ -9,8 +10,10 @@ OUTPUT = md5.out
 all: $(OUTPUT)
 
 $(OUTPUT): $(TESTBENCH) $(SOURCE)
-	$(IVERILOG) -o $(OUTPUT) $(TESTBENCH) $(SOURCE)
+	$(IVERILOG) $(IVERILOG_FLAGS) -o $(OUTPUT) $(TESTBENCH) $(SOURCE)
 	$(VVP) $(OUTPUT)
+
+re: clean all
 
 # Clean up
 clean:
