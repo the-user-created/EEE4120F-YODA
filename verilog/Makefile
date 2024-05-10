@@ -13,6 +13,8 @@ $(OUTPUT): $(TESTBENCH) $(SOURCE)
 	$(IVERILOG) $(IVERILOG_FLAGS) -o $(OUTPUT) $(TESTBENCH) $(SOURCE)
 	$(VVP) $(OUTPUT)
 
+re: clean all
+
 # Clean up
 clean:
 	rm -f $(OUTPUT) *.vcd
