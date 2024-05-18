@@ -196,16 +196,8 @@ std::vector<char> padMessage(const std::string& message) {
 
 
 int main() {
-    // Open the file
-    std::ifstream file("src/to_hash.txt");  // File containing the message to hash
-    if (!file) {
-        std::cerr << "Unable to open file to_hash.txt";
-        return 1;  // return with error code 1
-    }
-
-    // Read the file content
-    std::string message((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
+    // Message to hash
+    std::string message = "The quick brown fox jumps over the lazy dog";
 
     // Start the timer
     auto start = std::chrono::high_resolution_clock::now();
