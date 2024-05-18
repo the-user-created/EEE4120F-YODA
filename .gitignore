@@ -5,8 +5,7 @@
 !/cpp/
 !/opencl/
 !/verilog/
-!/md6_seq/
-!/md6_par/
+!/md6/
 
 # Whitelist specific files
 !/*.cpp

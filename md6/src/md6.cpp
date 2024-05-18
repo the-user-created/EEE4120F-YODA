@@ -1,4 +1,8 @@
 #include <cstring>
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <iostream>
 #include "md6.h"
 
 #define w md6_w
@@ -9,6 +13,8 @@
 #define u md6_u
 #define v md6_v
 #define b md6_b
+
+std::mutex mtx;
 
 static const md6_word Q[15] = {
         0x7311c2812425cfa0ULL,
@@ -160,6 +166,93 @@ static int md6_process(md6_state *st, int ell, int final) {
     if (next_level > st->top) st->top = next_level;
 
     return md6_process(st, next_level, final);
+}
+
+int md6_update_parallel(md6_state *st, const unsigned char *data, uint64_t databitlen) {
+    if (st == nullptr) return MD6_NULLSTATE;
+    if (st->initialized == 0) return MD6_STATENOTINIT;
+    if (data == nullptr) return MD6_NULLDATA;
+
+    unsigned int num_threads = std::thread::hardware_concurrency();
+    std::vector<std::thread> threads;
+    std::vector<md6_state> states(num_threads);
+
+    unsigned int chunk_size = databitlen / num_threads;
+
+    // Initialize individual states
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        md6_init(&states[i], st->d);
+        states[i].L = st->L;
+        states[i].r = st->r;
+        std::memcpy(states[i].K, st->K, sizeof(st->K));
+        states[i].keylen = st->keylen;
+    }
+
+    // Define a lambda function to process a chunk of data
+    auto process_chunk = [&](unsigned int thread_id, unsigned int start_bit, unsigned int end_bit) {
+        unsigned int portion_size;
+        unsigned char *dest;
+        const unsigned char *src;
+        int err;
+
+        for (unsigned int j = start_bit; j < end_bit;) {
+            portion_size = min(end_bit - j, static_cast<unsigned int>(b * w - (states[thread_id].bits[1])));
+            dest = (unsigned char *)states[thread_id].B[1] + states[thread_id].bits[1] / 8;
+            src = &(data[j / 8]);
+
+            if ((portion_size % 8 == 0) && (states[thread_id].bits[1] % 8 == 0) && (j % 8 == 0)) {
+                std::memcpy(dest, src, portion_size / 8);
+            } else {
+                append_bits(dest, states[thread_id].bits[1], src, portion_size);
+            }
+
+            j += portion_size;
+            states[thread_id].bits[1] += portion_size;
+            states[thread_id].bits_processed += portion_size;
+
+            if (states[thread_id].bits[1] == b * w && j < end_bit) {
+                err = md6_process(&states[thread_id], 1, 0);
+                if (err) {
+                    std::lock_guard<std::mutex> lock(mtx);
+                    return;
+                }
+            }
+        }
+    };
+
+    // Create threads to process each chunk
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        unsigned int start_bit = i * chunk_size;
+        unsigned int end_bit = (i == num_threads - 1) ? databitlen : start_bit + chunk_size;
+        threads.emplace_back(process_chunk, i, start_bit, end_bit);
+    }
+
+    // Wait for all threads to complete
+    for (auto &t : threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    // Combine results from all threads
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        if (states[i].bits[1] > 0) {
+            unsigned int portion_size = states[i].bits[1];
+            unsigned char *dest = (unsigned char *)st->B[1] + st->bits[1] / 8;
+            unsigned char *src = (unsigned char *)states[i].B[1];
+
+            std::memcpy(dest, src, portion_size / 8);
+            st->bits[1] += portion_size;
+            st->bits_processed += portion_size;
+
+            if (st->bits[1] == b * w) {
+                int err = md6_process(st, 1, 0);
+                if (err) return err;
+            }
+        }
+    }
+
+    return MD6_SUCCESS;
 }
 
 int md6_update(md6_state *st, const unsigned char *data, uint64_t databitlen) {

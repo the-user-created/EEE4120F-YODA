@@ -44,6 +44,7 @@ typedef struct {
 extern int md6_init(md6_state *st, int d);
 extern int md6_full_init(md6_state *st, int d, unsigned char *key, int keylen, int L, int r);
 extern int md6_update(md6_state *st, const unsigned char *data, uint64_t databitlen);
+extern int md6_update_parallel(md6_state *st, const unsigned char *data, uint64_t databitlen);
 extern int md6_final(md6_state *st, unsigned char *hashval);
 extern int md6_standard_compress(md6_word *C, const md6_word *Q, const md6_word *K, int ell, int i, int r, int L, int z,
                                  int p, int keylen, int d, md6_word *B);
