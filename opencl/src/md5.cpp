@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 #include <numeric>
+#include <algorithm>
+#include <cmath>
 
 #include "OpenCLError.h"
 
@@ -281,7 +283,18 @@ int main() {
     // Calculate the average time
     double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
 
+    // Calculate the minimum and maximum time
+    double min_time = *std::min_element(times.begin(), times.end());
+    double max_time = *std::max_element(times.begin(), times.end());
+
+    // Calculate the standard deviation
+    double sum_deviation = std::accumulate(times.begin(), times.end(), 0.0, [avg_time](double a, double b) { return a + pow(b - avg_time, 2); });
+    double stddev_time = sqrt(sum_deviation / times.size());
+
     std::cout << "Average time: " << avg_time << " s\n";
+    std::cout << "Minimum time: " << min_time << " s\n";
+    std::cout << "Maximum time: " << max_time << " s\n";
+    std::cout << "Standard deviation: " << stddev_time << " s\n";
 
     return 0;
 }

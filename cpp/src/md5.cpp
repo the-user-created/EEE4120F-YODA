@@ -13,6 +13,9 @@
 #include <vector>
 #include <iomanip>
 #include <chrono>
+#include <cmath>
+#include <algorithm>
+#include <numeric>
 
 // Define a typedef for a function pointer that takes three uint32_t and returns a uint32_t
 typedef uint32_t (*FuncPtr)(uint32_t, uint32_t, uint32_t);
@@ -168,6 +171,7 @@ int main() {
 
     double total_time = 0;
     int executions = 1000;
+    std::vector<double> times(executions, 0); // Vector to store all execution times
 
     // Open a file in write mode.
     std::ofstream outfile;
@@ -183,6 +187,7 @@ int main() {
         std::chrono::duration<double> diff = end-start;
 
         total_time += diff.count();
+        times[i] = diff.count(); // Store execution time in vector
 
         // Write the execution time to the CSV file
         outfile << i+1 << "," << diff.count() << "\n";
@@ -199,7 +204,16 @@ int main() {
 
     double average_time = total_time / executions;
 
+    // Calculate min, max and stddev
+    double min_time = *std::min_element(times.begin(), times.end());
+    double max_time = *std::max_element(times.begin(), times.end());
+    double sum_diff_sq = std::accumulate(times.begin(), times.end(), 0.0, [average_time](double a, double b) { return a + pow(b - average_time, 2); });
+    double stddev_time = sqrt(sum_diff_sq / executions);
+
     std::cout << "Average time: " << average_time * 1000 << " ms\n";
+    std::cout << "Min time: " << min_time * 1000 << " ms\n";
+    std::cout << "Max time: " << max_time * 1000 << " ms\n";
+    std::cout << "Standard deviation: " << stddev_time * 1000 << " ms\n";
 
     return 0;
 }
