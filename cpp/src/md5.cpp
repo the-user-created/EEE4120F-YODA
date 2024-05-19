@@ -166,7 +166,7 @@ std::array<uint8_t, 16> calculate(const std::string& inputStr) {
     return result;
 }
 
-int main() {
+void runTests() {
     int executions = 100;
     std::vector<double> times(executions, 0); // Vector to store all execution times
 
@@ -201,6 +201,35 @@ int main() {
         // Clear the vector
         times.clear();
     }
+}
+
+void singleTest() {
+    std::string input = "The quick brown fox jumps over the lazy dog";
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    std::array<uint8_t, 16> hash = calculate(input);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end - start;
+
+    std::cout << "MD5 hash of '" << input << "': ";
+    for (uint8_t byte : hash) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)byte;
+    }
+    std::cout << "\n";
+    // Expected hash: 9e107d9d372bb6826bd81d3542a419d6
+
+    std::cout << "Execution time: " << diff.count() << " s\n";
+}
+
+
+int main() {
+    // Run the tests
+    // runTests();
+
+    // Run verification test
+    singleTest();
 
     return 0;
 }

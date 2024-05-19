@@ -94,7 +94,7 @@ public:
 };
 
 // Function to run MD5 hashing and return execution times
-std::vector<double> runMD5Hashing(OpenCLResources& resources, const std::vector<char>& message, size_t local_size, size_t numBlocks, bool printOutput = false) {
+double runMD5Hashing(OpenCLResources& resources, const std::vector<char>& message, size_t local_size, size_t numBlocks, bool printOutput = false) {
     // Get the length of the message
     int messageLength = message.size();
 
@@ -146,9 +146,6 @@ std::vector<double> runMD5Hashing(OpenCLResources& resources, const std::vector<
     clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(endTime), &endTime, nullptr);
     double executionTime = (endTime - startTime) * 1e-9;  // Convert from nanoseconds to seconds
 
-    // Store the execution time
-    executionTimes.push_back(executionTime);
-
     // Read the output buffer back to the host
     std::unique_ptr<char[]> output(new char[16]);
     err = clEnqueueReadBuffer(resources.getQueue(), output_buffer, CL_TRUE, 0, 16 * sizeof(char), output.get(), 0, nullptr, nullptr);
@@ -170,7 +167,7 @@ std::vector<double> runMD5Hashing(OpenCLResources& resources, const std::vector<
     clReleaseMemObject(output_buffer);
     clReleaseKernel(kernel);
 
-    return executionTimes;
+    return executionTime;
 }
 
 // Function to pad the message to a multiple of 512 bits
@@ -195,7 +192,7 @@ std::vector<char> padMessage(const std::string& message) {
 }
 
 
-int main() {
+void runTests() {
     int executions = 3;
     std::vector<double> times(executions, 0); // Vector to store all execution times
 
@@ -225,17 +222,11 @@ int main() {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
         double paddingTime = duration.count() * 1e-6;  // Convert from microseconds to seconds
 
-        size_t local_size = 1;
-
         for (int i = 0; i < executions; ++i) {
-            auto start = std::chrono::high_resolution_clock::now();
+            double exec_time = runMD5Hashing(resources, paddedMessage, 1, numBlocks);
 
-            std::vector<double> exec_times = runMD5Hashing(resources, paddedMessage, local_size, numBlocks);
-
-            auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> diff = end - start + std::chrono::duration<double>(paddingTime);
-
-            times[i] = diff.count(); // Store execution time in vector
+            // Add the padding time to the execution time
+            times[i] = exec_time + paddingTime;
         }
 
         // Write the execution times to a CSV file
@@ -251,6 +242,43 @@ int main() {
         // Clear the vector
         times.clear();
     }
+}
+
+
+void singleTest() {
+    // Create an instance of OpenCLResources
+    OpenCLResources resources;
+    std::string message = "The quick brown fox jumps over the lazy dog";
+
+    // Start the timer
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Pad the message
+    std::vector<char> paddedMessage = padMessage(message);
+
+    // Compute the number of 512-bit blocks in the message
+    int numBlocks = paddedMessage.size() / 64;
+
+    // Stop the timer
+    auto stop = std::chrono::high_resolution_clock::now();
+
+    // Compute the time it took to pad the message
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    double paddingTime = duration.count() * 1e-6;  // Convert from microseconds to seconds
+
+    double exec_time = runMD5Hashing(resources, paddedMessage, 1, numBlocks, true);
+    // Expected hash: 9e107d9d372bb6826bd81d3542a419d6
+
+    std::cout << "Execution time: " << exec_time + paddingTime << " seconds\n";
+}
+
+
+int main() {
+    // Run a single test
+    singleTest();
+
+    // Run multiple tests - note that this will take a long time to run
+    // runTests();
 
     return 0;
 }

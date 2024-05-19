@@ -55,11 +55,11 @@ std::string md6Hash(const char *inputS, int hashBitLen, bool is_parallel) {
     return hash;
 }
 
-int main() {
+void runTests(bool is_parallel) {
+    std::cout << "Running tests for " << (is_parallel ? "parallel" : "sequential") << " implementation\n";
+
     int executions = 100;
     std::vector<double> times(executions, 0); // Vector to store all execution times
-
-    bool is_parallel = false;
 
     // Loop over different input sizes
     for (unsigned long long inputSize = 0; inputSize <= pow(2, 23); inputSize += 4 * ceil(pow(2, 23) / 400)) {
@@ -96,6 +96,134 @@ int main() {
         // Clear the vector
         times.clear();
     }
+
+    std::cout << "Finished running tests for " << (is_parallel ? "parallel" : "sequential") << " implementation\n";
+}
+
+void singleTestSequential() {
+    std::cout << "Running single test for sequential implementation" << std::endl;
+
+    // 128-bit hash
+    auto start = std::chrono::high_resolution_clock::now();
+
+    std::string hash128 = md6Hash("test", 128, false);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end - start;
+
+    std::string knownHash128 = "a133b0efa199156be653427c6ab85d3d";
+
+    if (hash128 == knownHash128) {
+        std::cout << "MD6-128 hash matches known hash." << std::endl;
+        std::cout << "Execution time: " << diff.count() << "s" << std::endl;
+    } else {
+        std::cout << "MD6-128 hash does not match known hash." << std::endl;
+    }
+
+    // 256-bit hash
+    start = std::chrono::high_resolution_clock::now();
+
+    std::string hash256 = md6Hash("test", 256, false);
+
+    end = std::chrono::high_resolution_clock::now();
+    diff = end - start;
+
+    std::string knownHash256 = "93c8a7d0ff132f325138a82b2baa98c12a7c9ac982feb6c5b310a1ca713615bd";
+
+    if (hash256 == knownHash256) {
+        std::cout << "MD6-256 hash matches known hash." << std::endl;
+        std::cout << "Execution time: " << diff.count() << "s" << std::endl;
+    } else {
+        std::cout << "MD6-256 hash does not match known hash." << std::endl;
+    }
+
+    // 512-bit hash
+    start = std::chrono::high_resolution_clock::now();
+
+    std::string hash512 = md6Hash("test", 512, false);
+    end = std::chrono::high_resolution_clock::now();
+    diff = end - start;
+
+    std::string knownHash512 = "d96ce883f4632f826b3bb553fe5cbff8fb00b32b3534b39aa0c0899d1199a8cf28d77e49f2465517dfb12c0f3268b90f8a13d94e6730a74ed2e8312242a9e937";
+
+    if (hash512 == knownHash512) {
+        std::cout << "MD6-512 hash matches known hash." << std::endl;
+        std::cout << "Execution time: " << diff.count() << "s" << std::endl;
+    } else {
+        std::cout << "MD6-512 hash does not match known hash." << std::endl;
+    }
+
+    std::cout << "" << std::endl;
+}
+
+
+void singleTestParallel() {
+    std::cout << "Running single test for parallel implementation" << std::endl;
+
+    // 128-bit hash
+    auto start = std::chrono::high_resolution_clock::now();
+
+    std::string hash128 = md6Hash("test", 128, true);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end - start;
+
+    std::string knownHash128 = "a133b0efa199156be653427c6ab85d3d";
+
+    if (hash128 == knownHash128) {
+        std::cout << "MD6-128 hash matches known hash." << std::endl;
+        std::cout << "Execution time: " << diff.count() << "s" << std::endl;
+    } else {
+        std::cout << "MD6-128 hash does not match known hash." << std::endl;
+    }
+
+    // 256-bit hash
+    start = std::chrono::high_resolution_clock::now();
+
+    std::string hash256 = md6Hash("test", 256, true);
+
+    end = std::chrono::high_resolution_clock::now();
+    diff = end - start;
+
+    std::string knownHash256 = "93c8a7d0ff132f325138a82b2baa98c12a7c9ac982feb6c5b310a1ca713615bd";
+
+    if (hash256 == knownHash256) {
+        std::cout << "MD6-256 hash matches known hash." << std::endl;
+        std::cout << "Execution time: " << diff.count() << "s" << std::endl;
+    } else {
+        std::cout << "MD6-256 hash does not match known hash." << std::endl;
+    }
+
+    // 512-bit hash
+    start = std::chrono::high_resolution_clock::now();
+
+    std::string hash512 = md6Hash("test", 512, true);
+    end = std::chrono::high_resolution_clock::now();
+    diff = end - start;
+
+    std::string knownHash512 = "d96ce883f4632f826b3bb553fe5cbff8fb00b32b3534b39aa0c0899d1199a8cf28d77e49f2465517dfb12c0f3268b90f8a13d94e6730a74ed2e8312242a9e937";
+
+    if (hash512 == knownHash512) {
+        std::cout << "MD6-512 hash matches known hash." << std::endl;
+        std::cout << "Execution time: " << diff.count() << "s" << std::endl;
+    } else {
+        std::cout << "MD6-512 hash does not match known hash." << std::endl;
+    }
+
+    std::cout << "" << std::endl;
+}
+
+
+int main() {
+    // Run the tests for both parallel and sequential implementations
+    // runTests(true);
+    // runTests(false);
+
+    // Run sequential verification tests
+    singleTestSequential();
+
+    // Run parallel verification tests
+    singleTestParallel();
 
     return 0;
 }
