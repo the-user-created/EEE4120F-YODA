@@ -1,13 +1,15 @@
 # MD5 Hashing Algorithm Implementation
 
 This repository contains implementations of the MD5 hashing algorithm in three different forms: sequential in C++, parallelized with OpenCL, and on an FPGA using Verilog.
+Implementations of the MD6 hashing algorithm are also included.
 
-## Branch Structure
+## Folder Structure
 
-The project is organized into three main branches:
-- `cpp`: This branch contains the sequential implementation of the MD5 algorithm in C++.
-- `opencl`: This branch includes the parallelized version of the MD5 algorithm using OpenCL.
-- `verilog`: This branch hosts the FPGA implementation of the MD5 algorithm in Verilog.
+The project is organized into three main folders:
+- `cpp`: This contains the sequential implementation of the MD5 algorithm in C++.
+- `opencl`: This contains the version of the MD5 algorithm using OpenCL.
+- `verilog`: This hosts the (planned) FPGA implementation of the MD5 algorithm in Verilog.
+- `md6`: This contains the sequential and parallel implementation of the MD6 algorithm in C++.
 
 ## Getting Started
 
@@ -25,38 +27,21 @@ Below are the instructions to set up each environment for development and testin
 To clone this repository and switch to a branch, use the following commands:
 
 ```bash
-git clone https://github.com/<your-username>/EEE4120F-YODA.git
+git clone https://github.com/the-user-created/EEE4120F-YODA.git
 cd EEE4120F-YODA
-git checkout <branch-name>  # Replace <branch-name> with cpp, opencl, or verilog
 ```
 
 ## Building and Running
+The Makefiles in each of the folders are setup for easily building and running the code.
+The instructions are identical for each of the implementations.
 
-### C++ Implementation
 ```bash
-cd cpp
-make
-make run
-```
-
-### OpenCL Implementation
-```bash
-cd opencl
-make
-make run
-```
-
-### Verilog Implementation
-```bash
-cd verilog
-make
-make run
+cd <implementation_folder>
+make re
 ```
 
 ## TODOs
-- [ ] Optimize the OpenCL implementation
-- [ ] Implement the FPGA version of the MD5 algorithm
-- [ ] Test various C compiler flags (can comment on this in the report)
+- [ ] Implement the FPGA version of the MD5 algorithm on Nexys A7 FPGA board.
 
 ## Authors
 - David Young - [YNGDAV005@myuct.ac.za](mailto:YNGDAV005@myuct.ac.za)
