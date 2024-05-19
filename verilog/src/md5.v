@@ -99,7 +99,7 @@ module md5 (
 
                         // Step 2: Append '0' bits until length is 448 modulo 512
                         for (i = message_len + 1; i < 448; i = i + 1) begin
-                            padded_message[i] = 8'h00;  // in bits: 00000000
+                            padded_message[i] = 1'b0;  // in bits: 00000000
                         end
 
                         // Step 3: Append 64-bit representation of original length (8 bits at a time)

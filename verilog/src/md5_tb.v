@@ -45,13 +45,8 @@ module tb_md5;
         reset = 0;
 
         // Stimulate the message input
-        // Example message: "The quick brown fox jumps over the lazy dog"
-        //message = 512'h54686520717569636b2062726f776e20666f78206a756d7073206f76657220746865206c617a7920646f67800000000000000000000000005801000000000000;  // message
-
-        // Stimulate the message input with varying lengths
-        //for (len = 32; len <= 512; len = len + 32) begin
-        // message of 448 bits (56 bytes) without padding
-        message = 344'h54686520717569636b2062726f776e20666f78206a756d7073206f76657220746865206c617a7920646f67; // "aaaaaaaa..."
+        // message works fine from 0 to 440 length
+        message = 344'h54686520717569636b2062726f776e20666f78206a756d7073206f76657220746865206c617a7920646f67;
         message_len = 344;
 
         // Start the computation
@@ -67,18 +62,17 @@ module tb_md5;
         // Check the output digest
         $display("Digest: %h", digest);
         // The expected digest for the given message (you need to calculate this in advance)
-        //if (digest == 128'h9e107d9d372bb6826bd81d3542a419d6) begin
-        //    $display("Test Passed. Digest matches expected value.");
-        //end else begin
-        //    $display("Test Failed. Digest does not match expected value.");
-        //end
+        if (digest == 128'h9e107d9d372bb6826bd81d3542a419d6) begin
+            $display("Test Passed. Digest matches expected value.");
+        end else begin
+            $display("Test Failed. Digest does not match expected value.");
+        end
 
         // Reset the MD5 computation
         #0.37;
         reset = 1;
         #0.37;
         reset = 0;
-        //end
 
         // End simulation
         #0.37;
