@@ -32,6 +32,9 @@ module tb_md5;
         forever #0.185 clk = !clk;  // Clock with a period of 370ps (2.7 GHz like iMac CPU)
     end
 
+    integer start_time;
+    integer elapsed_time;
+
     // Test vectors and checker
     initial begin
         // Initialize Inputs
@@ -53,14 +56,20 @@ module tb_md5;
         #0.37;
         start = 1;
         #0.37;
+        start_time = $time;  // Store the start time
         start = 0;
 
         // Wait for the MD5 computation to finish
         wait (ready == 1);
+        elapsed_time = $time - start_time;  // Calculate the elapsed time
         #0.37;
 
         // Check the output digest
         $display("Digest: %h", digest);
+
+        // Print the elapsed time
+        $display("Elapsed time: %d time units", elapsed_time);
+
         // The expected digest for the given message (you need to calculate this in advance)
         if (digest == 128'h9e107d9d372bb6826bd81d3542a419d6) begin
             $display("Test Passed. Digest matches expected value.");
