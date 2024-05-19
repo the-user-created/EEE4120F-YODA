@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 #include <chrono>
+#include <fstream>
+#include <sstream>
 #include "md6.h"
 
 std::string md6Hash(const char *inputS, int hashBitLen, bool is_parallel) {
@@ -54,40 +56,46 @@ std::string md6Hash(const char *inputS, int hashBitLen, bool is_parallel) {
 }
 
 int main() {
-    double total_time = 0;
-    int executions = 1000;
+    int executions = 100;
     std::vector<double> times(executions, 0); // Vector to store all execution times
 
     bool is_parallel = false;
 
-    std::cout << "Running " << executions << " executions of MD6-128 hashing with " <<
-              (is_parallel ? "parallel" : "sequential") << " implementation\n";
+    // Loop over different input sizes
+    for (unsigned long long inputSize = 0; inputSize <= pow(2, 23); inputSize += 4 * ceil(pow(2, 23) / 400)) {
+        // Generate input string of the required size
+        std::string inputS(inputSize, 'a'); // Fill the string with 'a'
 
-    for (int i = 0; i < executions; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
+        std::cout << "Running " << executions << " executions of MD6-128 hashing with " <<
+                  (is_parallel ? "parallel" : "sequential") << " implementation on input size " << inputSize << "\n";
 
-        std::string hash128 = md6Hash("test", 128, is_parallel);
+        for (int i = 0; i < executions; ++i) {
+            auto start = std::chrono::high_resolution_clock::now();
 
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> diff = end - start;
+            std::string hash128 = md6Hash(inputS.c_str(), 128, is_parallel);
 
-        total_time += diff.count();
-        times[i] = diff.count(); // Store execution time in vector
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = end - start;
+
+            times[i] = diff.count(); // Store execution time in vector
+        }
+
+        // Determine the output file name based on is_parallel
+        std::string outputFileName = is_parallel ? "times_par.csv" : "times_seq.csv";
+
+        // Write the execution times to a CSV file
+        std::ofstream outputFile(outputFileName, std::ios_base::app); // Append to the file
+        if (inputSize == 0) {
+            outputFile << "Run Number,Message Size,Execution Time\n"; // Write the headers
+        }
+        for (int i = 0; i < executions; ++i) {
+            outputFile << i+1 << "," << inputSize << "," << times[i] << "\n";
+        }
+        outputFile.close();
+
+        // Clear the vector
+        times.clear();
     }
-
-    double average_time = total_time / executions;
-
-    // Calculate min, max and stddev
-    double min_time = *std::min_element(times.begin(), times.end());
-    double max_time = *std::max_element(times.begin(), times.end());
-    double sum_diff_sq = std::accumulate(times.begin(), times.end(), 0.0,
-                                         [average_time](double a, double b) { return a + pow(b - average_time, 2); });
-    double stddev_time = sqrt(sum_diff_sq / executions);
-
-    std::cout << "Average time: " << average_time * 1000 << " ms\n";
-    std::cout << "Min time: " << min_time * 1000 << " ms\n";
-    std::cout << "Max time: " << max_time * 1000 << " ms\n";
-    std::cout << "Standard deviation: " << stddev_time * 1000 << " ms\n";
 
     return 0;
 }

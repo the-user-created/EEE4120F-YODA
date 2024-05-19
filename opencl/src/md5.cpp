@@ -196,97 +196,61 @@ std::vector<char> padMessage(const std::string& message) {
 
 
 int main() {
-    // Message to hash
-    std::string message = "The quick brown fox jumps over the lazy dog";
-
-    // Start the timer
-    auto start = std::chrono::high_resolution_clock::now();
-
-    // Pad the message
-    std::vector<char> paddedMessage = padMessage(message);
-
-    // Compute the number of 512-bit blocks in the message
-    int numBlocks = paddedMessage.size() / 64;
-
-    // print numblocks and padded message size
-    std::cout << "Number of blocks: " << numBlocks << "\n";
-    std::cout << "Padded message size: " << paddedMessage.size() << "\n";
-
-    // Stop the timer
-    auto stop = std::chrono::high_resolution_clock::now();
-
-    // Compute the time it took to pad the message
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    double paddingTime = duration.count() * 1e-6;  // Convert from microseconds to seconds
-
-    std::vector<double> times;
-    size_t local_size = 1;
-
-    // Local work size determines how many work items (threads) are in a work group
-    // A work group executes on a single compute unit.
-    // The work items in a work group can communicate with each other using local memory.
-    // The local work size has these constraints:
-    // - The total number of work items in a work group must be less than or equal to the maximum work group size. (CL_DEVICE_MAX_WORK_GROUP_SIZE)
-    // - The local size must be evenly divisible by the global size.
-    // - The local size in each dimension must be less than or equal to the maximum work-item sizes (CL_DEVICE_MAX_WORK_ITEM_SIZES)
-    // - The amount of local memory used by the kernel must be less than or equal to the local memory size. (CL_DEVICE_LOCAL_MEM_SIZE)
-    //
-    // Optimal local size is often a multiple of the warp size (or wavefront size) of the GPU.
-
-    // TODO: local/global size determination
+    int executions = 3;
+    std::vector<double> times(executions, 0); // Vector to store all execution times
 
     // Create an instance of OpenCLResources
     OpenCLResources resources;
 
-    std::vector<double> exec_times;
+    // Loop over different input sizes
+    for (unsigned long long inputSize = 0; inputSize < pow(2, 20); inputSize += 4 * ceil(pow(2, 20) / 200)) {
+        // Generate input string of the required size
+        std::string message(inputSize, 'a'); // Fill the string with 'a'
 
-    // Open a file in write mode.
-    std::ofstream outfile;
-    outfile.open("execution_times.csv");
-    outfile << "Num,Time\n"; // Write the headers
+        std::cout << "Running " << executions << " executions of MD5 hashing on input size " << inputSize << "\n";
 
-    try {
-        // Run MD5 hashing 100 times
-        for (int i = 0; i < 1000; ++i) {
-            if (i == 999) {
-                // Print the output for the last iteration
-                exec_times = runMD5Hashing(resources, paddedMessage, local_size, numBlocks, true);
-            } else {
-                exec_times = runMD5Hashing(resources, paddedMessage, local_size, numBlocks);
-            }
+        // Start the timer
+        auto start = std::chrono::high_resolution_clock::now();
 
-            // Add the padding time to each execution time
-            for (auto &time: exec_times) {
-                time += paddingTime;
-            }
+        // Pad the message
+        std::vector<char> paddedMessage = padMessage(message);
 
-            times.insert(times.end(), exec_times.begin(), exec_times.end());
+        // Compute the number of 512-bit blocks in the message
+        int numBlocks = paddedMessage.size() / 64;
 
-            // Write the execution time to the CSV file
-            outfile << i+1 << "," << exec_times[0] << "\n";
+        // Stop the timer
+        auto stop = std::chrono::high_resolution_clock::now();
+
+        // Compute the time it took to pad the message
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+        double paddingTime = duration.count() * 1e-6;  // Convert from microseconds to seconds
+
+        size_t local_size = 1;
+
+        for (int i = 0; i < executions; ++i) {
+            auto start = std::chrono::high_resolution_clock::now();
+
+            std::vector<double> exec_times = runMD5Hashing(resources, paddedMessage, local_size, numBlocks);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = end - start + std::chrono::duration<double>(paddingTime);
+
+            times[i] = diff.count(); // Store execution time in vector
         }
-    } catch (const OpenCLError& e) {
-        std::cerr << e.what() << std::endl;
-        return 1;
+
+        // Write the execution times to a CSV file
+        std::ofstream outputFile("execution_times_3.csv", std::ios_base::app); // Append to the file
+        if (inputSize == 0) {
+            outputFile << "Run Number,Message Size,Execution Time\n"; // Write the headers
+        }
+        for (int i = 0; i < executions; ++i) {
+            outputFile << i+1 << "," << inputSize << "," << times[i] << "\n";
+        }
+        outputFile.close();
+
+        // Clear the vector
+        times.clear();
     }
-
-    outfile.close(); // Close the file
-
-    // Calculate the average time
-    double avg_time = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-
-    // Calculate the minimum and maximum time
-    double min_time = *std::min_element(times.begin(), times.end());
-    double max_time = *std::max_element(times.begin(), times.end());
-
-    // Calculate the standard deviation
-    double sum_deviation = std::accumulate(times.begin(), times.end(), 0.0, [avg_time](double a, double b) { return a + pow(b - avg_time, 2); });
-    double stddev_time = sqrt(sum_deviation / times.size());
-
-    std::cout << "Average time: " << avg_time << " s\n";
-    std::cout << "Minimum time: " << min_time << " s\n";
-    std::cout << "Maximum time: " << max_time << " s\n";
-    std::cout << "Standard deviation: " << stddev_time << " s\n";
 
     return 0;
 }

@@ -167,53 +167,40 @@ std::array<uint8_t, 16> calculate(const std::string& inputStr) {
 }
 
 int main() {
-    std::string input = "The quick brown fox jumps over the lazy dog";
-
-    double total_time = 0;
-    int executions = 1000;
+    int executions = 100;
     std::vector<double> times(executions, 0); // Vector to store all execution times
 
-    // Open a file in write mode.
-    std::ofstream outfile;
-    outfile.open("execution_times.csv");
-    outfile << "Num,Time\n"; // Write the headers
+    // Loop over different input sizes
+    for (unsigned long long inputSize = 0; inputSize <= pow(2, 23); inputSize += 4 * ceil(pow(2, 23) / 400)) {
+        // Generate input string of the required size
+        std::string inputS(inputSize, 'a'); // Fill the string with 'a'
 
-    for (int i = 0; i < executions; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
+        std::cout << "Running " << executions << " executions of MD5 hashing on input size " << inputSize << "\n";
 
-        std::array<uint8_t, 16> hash = calculate(input);
+        for (int i = 0; i < executions; ++i) {
+            auto start = std::chrono::high_resolution_clock::now();
 
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> diff = end-start;
+            std::array<uint8_t, 16> hash = calculate(inputS);
 
-        total_time += diff.count();
-        times[i] = diff.count(); // Store execution time in vector
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = end - start;
 
-        // Write the execution time to the CSV file
-        outfile << i+1 << "," << diff.count() << "\n";
+            times[i] = diff.count(); // Store execution time in vector
+        }
+
+        // Write the execution times to a CSV file
+        std::ofstream outputFile("execution_times.csv", std::ios_base::app); // Append to the file
+        if (inputSize == 0) {
+            outputFile << "Run Number,Message Size,Execution Time\n"; // Write the headers
+        }
+        for (int i = 0; i < executions; ++i) {
+            outputFile << i+1 << "," << inputSize << "," << times[i] << "\n";
+        }
+        outputFile.close();
+
+        // Clear the vector
+        times.clear();
     }
-
-    outfile.close(); // Close the file
-
-    // Print the hash
-    std::cout << "MD5 Hash: ";
-    for (uint8_t byte : calculate(input)) {
-        std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)byte;
-    }
-    std::cout << std::dec << std::endl;
-
-    double average_time = total_time / executions;
-
-    // Calculate min, max and stddev
-    double min_time = *std::min_element(times.begin(), times.end());
-    double max_time = *std::max_element(times.begin(), times.end());
-    double sum_diff_sq = std::accumulate(times.begin(), times.end(), 0.0, [average_time](double a, double b) { return a + pow(b - average_time, 2); });
-    double stddev_time = sqrt(sum_diff_sq / executions);
-
-    std::cout << "Average time: " << average_time * 1000 << " ms\n";
-    std::cout << "Min time: " << min_time * 1000 << " ms\n";
-    std::cout << "Max time: " << max_time * 1000 << " ms\n";
-    std::cout << "Standard deviation: " << stddev_time * 1000 << " ms\n";
 
     return 0;
 }
