@@ -1,4 +1,4 @@
-# MD5 Hashing Algorithm Implementation
+# YODA: MD5 Hashing Algorithm Implementation
 
 This repository contains implementations of the MD5 hashing algorithm in three different forms: sequential in C++, parallelized with OpenCL, and on an FPGA using Verilog.
 Implementations of the MD6 hashing algorithm are also included.

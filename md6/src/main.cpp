@@ -1,13 +1,7 @@
 #include <iostream>
-#include <cstring>
-#include <cstdlib>
 #include <vector>
-#include <numeric>
-#include <algorithm>
-#include <cmath>
 #include <chrono>
 #include <fstream>
-#include <sstream>
 #include "md6.h"
 
 std::string md6Hash(const char *inputS, int hashBitLen, bool is_parallel) {

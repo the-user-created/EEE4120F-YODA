@@ -8,14 +8,8 @@
 
 #include <fstream>
 #include <iostream>
-#include <array>
-#include <cstdint>
 #include <vector>
-#include <iomanip>
 #include <chrono>
-#include <cmath>
-#include <algorithm>
-#include <numeric>
 
 // Define a typedef for a function pointer that takes three uint32_t and returns a uint32_t
 typedef uint32_t (*FuncPtr)(uint32_t, uint32_t, uint32_t);

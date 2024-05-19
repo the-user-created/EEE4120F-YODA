@@ -10,11 +10,7 @@
 
 #include <iostream>
 #include <fstream>
-#include <string>
 #include <vector>
-#include <numeric>
-#include <algorithm>
-#include <cmath>
 
 #include "OpenCLError.h"
 
