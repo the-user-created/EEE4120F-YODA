@@ -24,7 +24,7 @@ module tb_md5;
     // Clock generation
     initial begin
         clk = 0;
-        forever #5 clk = !clk;  // Clock with a period of 10 ns
+        forever #0.185 clk = !clk;  // Clock with a period of 370ps (2.7 GHz like iMac CPU)
     end
 
     // Test vectors and checker
@@ -35,7 +35,7 @@ module tb_md5;
         message = 0;
 
         // Wait for global reset to finish
-        #100;
+        #0.37;
         reset = 0;
 
         // Stimulate the message input
@@ -43,14 +43,14 @@ module tb_md5;
         message = 512'h54686520717569636b2062726f776e20666f78206a756d7073206f76657220746865206c617a7920646f67800000000000000000000000005801000000000000;  // message
 
         // Start the computation
-        #10;
+        #0.37;
         start = 1;
-        #10;
+        #0.37;
         start = 0;
 
         // Wait for the MD5 computation to finish
         wait (ready == 1);
-        #10;
+        #0.37;
 
         // Check the output digest
         $display("Digest: %h", digest);
@@ -62,7 +62,7 @@ module tb_md5;
         end
 
         // End simulation
-        #100;
+        #0.37;
         $finish;
     end
 

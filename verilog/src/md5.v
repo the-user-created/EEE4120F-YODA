@@ -116,7 +116,7 @@ module md5 (
                         AA = DD;
                         DD = CC;
                         CC = BB;
-                        BB = (BB + ((F << S[i]) | (F >>> (32 - S[i])))) % 4294967296;
+                        BB = (BB + ((F << S[i]) | (F >>> (32 - S[i])))) % 32'hFFFFFFFF;
 
                         i = i + 1;
                     end else begin
@@ -138,10 +138,4 @@ module md5 (
             endcase
         end
     end
-
-    // Monitor for debugging
-    initial begin
-        //$monitor("State: %d, AA: %h, BB: %h, CC: %h, DD: %h, i: %d, idx: %d, ready: %b", state, AA, BB, CC, DD, i, idx, ready);
-    end
-
 endmodule
