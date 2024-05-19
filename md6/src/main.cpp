@@ -175,6 +175,8 @@ void singleTestParallel() {
         std::cout << "Execution time: " << diff.count() << "s" << std::endl;
     } else {
         std::cout << "MD6-128 hash does not match known hash." << std::endl;
+        std::cout << "Expected: " << knownHash128 << std::endl;
+        std::cout << "Actual: " << hash128 << std::endl;
     }
 
     // 256-bit hash
@@ -192,6 +194,8 @@ void singleTestParallel() {
         std::cout << "Execution time: " << diff.count() << "s" << std::endl;
     } else {
         std::cout << "MD6-256 hash does not match known hash." << std::endl;
+        std::cout << "Expected: " << knownHash256 << std::endl;
+        std::cout << "Actual: " << hash256 << std::endl;
     }
 
     // 512-bit hash
@@ -208,6 +212,8 @@ void singleTestParallel() {
         std::cout << "Execution time: " << diff.count() << "s" << std::endl;
     } else {
         std::cout << "MD6-512 hash does not match known hash." << std::endl;
+        std::cout << "Expected: " << knownHash512 << std::endl;
+        std::cout << "Actual: " << hash512 << std::endl;
     }
 
     std::cout << "" << std::endl;

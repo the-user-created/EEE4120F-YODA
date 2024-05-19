@@ -155,7 +155,6 @@ double runMD5Hashing(OpenCLResources& resources, const std::vector<char>& messag
 
     // Print the output
     if (printOutput) {
-        std::cout << "MD5 Hash: ";
         for (int i = 0; i < 16; i++) {
             printf("%02x", output[i] & 0xFF);
         }
@@ -266,6 +265,7 @@ void singleTest() {
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
     double paddingTime = duration.count() * 1e-6;  // Convert from microseconds to seconds
 
+    std::cout << "MD5 hash of '" << message << "': \n";
     double exec_time = runMD5Hashing(resources, paddedMessage, 1, numBlocks, true);
     // Expected hash: 9e107d9d372bb6826bd81d3542a419d6
 
