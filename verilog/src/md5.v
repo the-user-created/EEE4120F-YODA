@@ -3,7 +3,8 @@
 module md5 (
         input wire clk,
         input wire reset,
-        input wire [511:0] message,  // 512-bit message block input
+        input wire [0:511] message,  // 512-bit message block input
+        input wire [63:0] message_len, // Length of the message in bits (up to 512)
         input wire start,            // Start the process
         output reg [127:0] digest,   // Output digest
         output reg ready             // Indicates completion
@@ -22,10 +23,12 @@ module md5 (
     reg [31:0] AA, BB, CC, DD;
     reg [31:0] F;
     integer i;
+    integer j;
     integer idx;
 
     // Message schedule array (only showing initialization)
     reg [31:0] M [15:0];  // 16 words of the message block
+    reg [0:511] padded_message;  // Padded message
 
     initial begin
         // Initialize the constants
@@ -85,9 +88,30 @@ module md5 (
                         BB <= B;
                         CC <= C;
                         DD <= D;  // Save initial values
-                        for (i = 15; i >= 0; i = i - 1) begin
-                            M[15 - i] <= {message[32*i +: 8], message[32*i + 8 +: 8], message[32*i + 16 +: 8], message[32*i + 24 +: 8]};  // Split the message into 32-bit words and reverse the byte order
+
+                        // Copy the input string to the padded message
+                        for (i = 512 - message_len; i < 512; i = i + 1) begin
+                            padded_message[i - 512 + message_len] = message[i];
                         end
+
+                        // Step 1: Append a single '1' bit
+                        padded_message[message_len] = 1'b1;  // in bits: 10000000
+
+                        // Step 2: Append '0' bits until length is 448 modulo 512
+                        for (i = message_len + 1; i < 448; i = i + 1) begin
+                            padded_message[i] = 8'h00;  // in bits: 00000000
+                        end
+
+                        // Step 3: Append 64-bit representation of original length (8 bits at a time)
+                        for (i = 0; i < 8; i = i + 1) begin
+                            padded_message[448 + i*8 +: 8] = message_len[8*i +: 8];
+                        end
+
+                        // Initialize the message schedule array
+                        for (i = 0; i < 16; i = i + 1) begin
+                            M[i] <= reverse_bytes({padded_message[32*i +: 8], padded_message[32*i + 8 +: 8], padded_message[32*i + 16 +: 8], padded_message[32*i + 24 +: 8]});  // Split the message into 32-bit words and reverse the byte order
+                        end
+
                         i <= 0;  // Initialize counter for loop
                         state <= 1;
                     end
